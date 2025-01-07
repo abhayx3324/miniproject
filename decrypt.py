@@ -6,29 +6,46 @@ from Crypto.Cipher import AES
 from PIL import Image
 from kyber_py.kyber import Kyber512
 import numpy as np
+from pymongo import MongoClient
 
-USER_DB = "users.json"
+def get_mongo_client():
+    try:
+        client = MongoClient("mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/")  # Replace with your MongoDB URI
+        return client
+    except Exception as e:
+        print(f"Error connecting to MongoDB: {str(e)}", file=sys.stderr)
+        return None
 
 def load_users_data():
-    """Load users data from the JSON file."""
+    """Load users data from MongoDB."""
     try:
-        if not os.path.exists(USER_DB):
-            print(f"Error: {USER_DB} not found.", file=sys.stderr)
+        client = get_mongo_client()
+        if not client:
             return None
 
-        with open(USER_DB, 'r') as file:
-            users_data = json.load(file)
+        db = client["users_db"]  # Replace with your database name
+        users_collection = db["users"]  # Replace with your collection name
+        users_data = {user["_id"]: user for user in users_collection.find()}
         return users_data
     except Exception as e:
-        print(f"Error loading users data: {str(e)}", file=sys.stderr)
+        print(f"Error loading users data from MongoDB: {str(e)}", file=sys.stderr)
         return None
 
 def save_users(users):
+    """Save users data to MongoDB."""
     try:
-        with open(USER_DB, 'w') as f:
-            json.dump(users, f, indent=4)
+        client = get_mongo_client()
+        if not client:
+            return
+
+        db = client["users_db"]  # Replace with your database name
+        users_collection = db["users"]  # Replace with your collection name
+
+        for username, user_data in users.items():
+            users_collection.update_one({"_id": username}, {"$set": user_data}, upsert=True)
     except Exception as e:
-        print(f"Error saving users data: {str(e)}", file=sys.stderr)
+        print(f"Error saving users data to MongoDB: {str(e)}", file=sys.stderr)
+
 
 def list_decrypt_files(users_data, username):
     """List files that the specified user may decrypt."""

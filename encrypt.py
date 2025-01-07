@@ -7,33 +7,33 @@ from tkinter import filedialog
 from Crypto.Cipher import AES
 from PIL import Image
 from kyber_py.kyber import Kyber512
+from pymongo import MongoClient
 
-USER_DB = "users.json"
-
+# MongoDB connection
+client = MongoClient("mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/")  # Replace with your MongoDB URI
+db = client["users_db"]  # Database name
+users_collection = db["users"]  # Collection name
 
 def load_users():
     try:
-        if os.path.exists(USER_DB):
-            with open(USER_DB, 'r') as f:
-                return json.load(f)
-        else:
-            print(f"Error reading {USER_DB}. File does not exist", file=sys.stderr)
-            return {}
-    except json.JSONDecodeError:
-        print(f"Error reading {USER_DB}. It might be empty or corrupted.", file=sys.stderr)
-        return {}
+        users = {}
+        for user in users_collection.find():
+            users[user["_id"]] = user
+        return users
     except Exception as e:
-        print(f"An error occurred while loading users: {e}", file=sys.stderr)
+        print(f"An error occurred while loading users from MongoDB: {e}", file=sys.stderr)
         return {}
-
-
+    
 def save_users(users):
     try:
-        with open(USER_DB, 'w') as f:
-            json.dump(users, f, indent=4)
+        for username, data in users.items():
+            users_collection.update_one(
+                {"_id": username},  # Use `_id` as the unique identifier
+                {"$set": data},  # Update the data
+                upsert=True  # Insert if not already present
+            )
     except Exception as e:
-        print(f"An error occurred while saving users: {e}", file=sys.stderr)
-
+        print(f"An error occurred while saving users to MongoDB: {e}", file=sys.stderr)
 
 def select_file_encryption():
     try:
@@ -205,14 +205,16 @@ def encrypt_file(username, public_key):
         os.remove(file_path)
         print(f"Original file {file_path} deleted after encryption.")
 
-        users_data = load_users()
-
-        users_data[username]["files"][file_name] = {
-            "file_path": output_file,
-            "challenge": challenge_base64,  # Base64 or UTF-8 encode
-        }
-
-        save_users(users_data)
+        users_collection.update_one(
+            {"_id": username},  # Use `_id` as the unique identifier
+            {"$set": {
+                f"files.{file_name}": {
+                    "file_path": output_file,
+                    "challenge": challenge_base64
+                }
+            }},
+            upsert=True  # Insert if the user does not already exist
+        )
 
     except Exception as e:
         print(f"An error occurred during file encryption: {e}", file=sys.stderr)
