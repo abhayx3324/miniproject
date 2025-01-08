@@ -45,9 +45,8 @@ def check_password(stored_hash, password):
         return False
 
 # User Authentication
-def login_user(username, password):
+def login_user(users_collection, username, password):
     try:
-        users_collection = get_users_collection()
         if users_collection is None:  # Explicit comparison with None
             print("Error: Users collection could not be retrieved.", file=sys.stderr)
             return None
@@ -75,9 +74,8 @@ def login_user(username, password):
         print(f"Error during login: {e}", file=sys.stderr)
         return None
 
-def register_user(username, password):
+def register_user(users_collection, username, password):
     try:
-        users_collection = get_users_collection()
         if users_collection is None:  # Explicit comparison with None
             print("Error: Users collection could not be retrieved.", file=sys.stderr)
             return False
@@ -121,15 +119,15 @@ def register_user(username, password):
         return False
 
 # File Operations
-def inner_menu(username, public_key):
+def inner_menu(users_collection, username, public_key):
     while True:
         try:
             print("\n1. Encrypt \n2. Decrypt \n3. Logout")
             ch = int(input("Enter your choice: "))
             if ch == 1:
-                encrypt_file(username, public_key)
+                encrypt_file(users_collection, username, public_key)
             elif ch == 2:
-                decrypt_file(username)
+                decrypt_file(users_collection, username)
             elif ch == 3:
                 return
             else:
@@ -139,6 +137,7 @@ def inner_menu(username, public_key):
 
 # Main Menu
 def main():
+    users_collection = get_users_collection();
     while True:
         try:
             print("\n1. Login \n2. Register \n3. Exit")
@@ -146,9 +145,9 @@ def main():
             if ch == 1:
                 username = input("Enter your username: ")
                 password = input("Enter your password: ")
-                pk = login_user(username, password)
-                if pk is not None:
-                    inner_menu(username, pk)
+                public_key = login_user(users_collection, username, password)
+                if public_key is not None:
+                    inner_menu(users_collection, username, public_key)
                 else:
                     print("Login was unsuccessful. Try again.", file=sys.stderr)
             elif ch == 2:
@@ -156,7 +155,7 @@ def main():
                 password1 = input("Enter password: ")
                 password2 = input("Enter password again: ")
                 if password1 == password2:
-                    if register_user(username, password1) is not None:
+                    if register_user(users_collection, username, password1) is not None:
                         print("Register successful. Now please login.")
                     else:
                         print("Register was unsuccessful. Try again.", file=sys.stderr)

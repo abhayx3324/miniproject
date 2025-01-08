@@ -8,28 +8,7 @@ from Crypto.Cipher import AES
 from PIL import Image
 from kyber_py.kyber import Kyber512
 from pymongo import MongoClient
-
-# MongoDB connection
-MONGO_URI = "mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/"  # Replace with your MongoDB URI
-DB_NAME = "users_db"
-COLLECTION_NAME = "users"
-
-# MongoDB Connection Setup
-def get_mongo_client():
-    try:
-        client = MongoClient(MONGO_URI)
-        print("Connected successfully!")
-        return client
-    except Exception as e:
-        print(f"Connection failed: {e}", file=sys.stderr)
-        return None
-
-def get_users_collection():
-    client = get_mongo_client()
-    if client:
-        db = client[DB_NAME]
-        return db[COLLECTION_NAME]
-    return None
+import requests
 
 def select_file_encryption():
     try:
@@ -57,6 +36,27 @@ def select_file_encryption():
     except Exception as e:
         print(f"An error occurred while selecting the file: {e}", file=sys.stderr)
         return None, None, None
+    
+def select_user_to_send(users_collection):
+    user_list = [user['username'] for user in users_collection.find({}, {"username": 1, "_id": 0})]
+    
+    if not user_list:
+        print("No users found in the database.", file=sys.stderr)
+        return None
+    
+    print("Select user: ")
+    for user in user_list:
+        print(user);
+
+    selected_user = input("Enter the username to send the file to:").strip()
+
+    if selected_user in user_list:
+        print(f"Selected user: {selected_user}")
+        return selected_user
+    else:
+        print("Invalid username selected.", file=sys.stderr)
+        return None
+
 
 
 def encrypt_text_file(file_path, aes_key):
@@ -155,7 +155,7 @@ def encrypt_file_type(file_path, aes_key, file_extension):
         return None, None, None, None, None
 
 
-def encrypt_file(username, public_key):
+def encrypt_file(users_collection, username, public_key):
     try:
         aes_key, challenge = Kyber512.encaps(public_key)
 
@@ -201,8 +201,7 @@ def encrypt_file(username, public_key):
         os.remove(file_path)
         print(f"Original file {file_path} deleted after encryption.")
 
-        users = get_users_collection()
-        users.update_one(
+        users_collection.update_one(
             {"username": username},
             {"$set": {
                 f"files.{file_name}": {
@@ -211,6 +210,22 @@ def encrypt_file(username, public_key):
                 }
             }},
             upsert=True  # Insert if the user does not already exist
+        )
+        
+        selected_user = select_user_to_send(users_collection)
+        if not selected_user:
+            print("No user selected to send the file.", file=sys.stderr)
+            return
+        
+        users_collection.update_one(
+            {"username": selected_user},
+            {"$set": {
+                f"files.{file_name}": {
+                    "file_path": output_file,
+                    "challenge": challenge_base64
+                }
+            }},
+            upsert=True
         )
 
     except Exception as e:

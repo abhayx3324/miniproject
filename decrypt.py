@@ -8,30 +8,9 @@ from kyber_py.kyber import Kyber512
 import numpy as np
 from pymongo import MongoClient
 
-MONGO_URI = "mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/"  # Replace with your MongoDB URI
-DB_NAME = "users_db"
-COLLECTION_NAME = "users"
-
-# MongoDB Connection Setup
-def get_mongo_client():
+def list_decrypt_files(users_collection, username):
     try:
-        client = MongoClient(MONGO_URI)
-        print("Connected successfully!")
-        return client
-    except Exception as e:
-        print(f"Connection failed: {e}", file=sys.stderr)
-        return None
-
-def get_users_collection():
-    client = get_mongo_client()
-    if client:
-        db = client[DB_NAME]
-        return db[COLLECTION_NAME]
-    return None
-
-def list_decrypt_files(users, username):
-    try:
-        user_data = users.find_one({"username": username})  # Query the database for the user
+        user_data = users_collection.find_one({"username": username})  # Query the database for the user
         if not user_data:
             print(f"Error: User '{username}' not found.", file=sys.stderr)
             return []
@@ -124,13 +103,12 @@ def decrypt_file_type(aes_key, file_extension, nonce, tag, ciphertext, width, he
         print(f"Error decrypting file of type {file_extension}: {str(e)}", file=sys.stderr)
         return None
 
-def decrypt_file(username):
+def decrypt_file(users_collection, username):
     try:
-        users = get_users_collection()
-        if users is None:
+        if users_collection is None:
             return
 
-        files = list_decrypt_files(users, username)
+        files = list_decrypt_files(users_collection, username)
 
         if not files:
             print(f"No decrypt files found for user '{username}'.")
@@ -148,7 +126,7 @@ def decrypt_file(username):
 
         file_name = files[int(choice) - 1]
 
-        user_data = users.find_one({"username": username})  # Query the database for the user
+        user_data = users_collection.find_one({"username": username})  # Query the database for the user
         if not user_data:
             print(f"Error: User '{username}' not found.", file=sys.stderr)
             return
@@ -209,7 +187,7 @@ def decrypt_file(username):
 
         print(f"Decrypted file stored at: {output_file}")
 
-        users.update_one(
+        users_collection.update_one(
                 {"username": username},
                 {"$unset": {f"files.{file_name}": ""}}
             )
