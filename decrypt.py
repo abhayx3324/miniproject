@@ -8,53 +8,35 @@ from kyber_py.kyber import Kyber512
 import numpy as np
 from pymongo import MongoClient
 
+MONGO_URI = "mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/"  # Replace with your MongoDB URI
+DB_NAME = "users_db"
+COLLECTION_NAME = "users"
+
+# MongoDB Connection Setup
 def get_mongo_client():
     try:
-        client = MongoClient("mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/")  # Replace with your MongoDB URI
+        client = MongoClient(MONGO_URI)
+        print("Connected successfully!")
         return client
     except Exception as e:
-        print(f"Error connecting to MongoDB: {str(e)}", file=sys.stderr)
+        print(f"Connection failed: {e}", file=sys.stderr)
         return None
 
-def load_users_data():
-    """Load users data from MongoDB."""
+def get_users_collection():
+    client = get_mongo_client()
+    if client:
+        db = client[DB_NAME]
+        return db[COLLECTION_NAME]
+    return None
+
+def list_decrypt_files(users, username):
     try:
-        client = get_mongo_client()
-        if not client:
-            return None
-
-        db = client["users_db"]  # Replace with your database name
-        users_collection = db["users"]  # Replace with your collection name
-        users_data = {user["_id"]: user for user in users_collection.find()}
-        return users_data
-    except Exception as e:
-        print(f"Error loading users data from MongoDB: {str(e)}", file=sys.stderr)
-        return None
-
-def save_users(users):
-    """Save users data to MongoDB."""
-    try:
-        client = get_mongo_client()
-        if not client:
-            return
-
-        db = client["users_db"]  # Replace with your database name
-        users_collection = db["users"]  # Replace with your collection name
-
-        for username, user_data in users.items():
-            users_collection.update_one({"_id": username}, {"$set": user_data}, upsert=True)
-    except Exception as e:
-        print(f"Error saving users data to MongoDB: {str(e)}", file=sys.stderr)
-
-
-def list_decrypt_files(users_data, username):
-    """List files that the specified user may decrypt."""
-    try:
-        if username not in users_data:
+        user_data = users.find_one({"username": username})  # Query the database for the user
+        if not user_data:
             print(f"Error: User '{username}' not found.", file=sys.stderr)
             return []
 
-        user_files = users_data[username].get("files", {})
+        user_files = user_data.get("files", {})
         return list(user_files.keys())
     except Exception as e:
         print(f"Error listing files for user '{username}': {str(e)}", file=sys.stderr)
@@ -144,11 +126,11 @@ def decrypt_file_type(aes_key, file_extension, nonce, tag, ciphertext, width, he
 
 def decrypt_file(username):
     try:
-        users_data = load_users_data()
-        if users_data is None:
+        users = get_users_collection()
+        if users is None:
             return
 
-        files = list_decrypt_files(users_data, username)
+        files = list_decrypt_files(users, username)
 
         if not files:
             print(f"No decrypt files found for user '{username}'.")
@@ -166,7 +148,12 @@ def decrypt_file(username):
 
         file_name = files[int(choice) - 1]
 
-        user_files = users_data[username].get("files", {})
+        user_data = users.find_one({"username": username})  # Query the database for the user
+        if not user_data:
+            print(f"Error: User '{username}' not found.", file=sys.stderr)
+            return
+
+        user_files = user_data.get("files", {})
 
         file_path = user_files[file_name]["file_path"]
 
@@ -222,9 +209,10 @@ def decrypt_file(username):
 
         print(f"Decrypted file stored at: {output_file}")
 
-        del users_data[username]["files"][file_name]
-
-        save_users(users_data)
+        users.update_one(
+                {"username": username},
+                {"$unset": {f"files.{file_name}": ""}}
+            )
 
         print(f"File record for '{file_name}' deleted from user data.")
 

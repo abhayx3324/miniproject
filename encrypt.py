@@ -10,30 +10,26 @@ from kyber_py.kyber import Kyber512
 from pymongo import MongoClient
 
 # MongoDB connection
-client = MongoClient("mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/")  # Replace with your MongoDB URI
-db = client["users_db"]  # Database name
-users_collection = db["users"]  # Collection name
+MONGO_URI = "mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/"  # Replace with your MongoDB URI
+DB_NAME = "users_db"
+COLLECTION_NAME = "users"
 
-def load_users():
+# MongoDB Connection Setup
+def get_mongo_client():
     try:
-        users = {}
-        for user in users_collection.find():
-            users[user["_id"]] = user
-        return users
+        client = MongoClient(MONGO_URI)
+        print("Connected successfully!")
+        return client
     except Exception as e:
-        print(f"An error occurred while loading users from MongoDB: {e}", file=sys.stderr)
-        return {}
-    
-def save_users(users):
-    try:
-        for username, data in users.items():
-            users_collection.update_one(
-                {"_id": username},  # Use `_id` as the unique identifier
-                {"$set": data},  # Update the data
-                upsert=True  # Insert if not already present
-            )
-    except Exception as e:
-        print(f"An error occurred while saving users to MongoDB: {e}", file=sys.stderr)
+        print(f"Connection failed: {e}", file=sys.stderr)
+        return None
+
+def get_users_collection():
+    client = get_mongo_client()
+    if client:
+        db = client[DB_NAME]
+        return db[COLLECTION_NAME]
+    return None
 
 def select_file_encryption():
     try:
@@ -205,8 +201,9 @@ def encrypt_file(username, public_key):
         os.remove(file_path)
         print(f"Original file {file_path} deleted after encryption.")
 
-        users_collection.update_one(
-            {"_id": username},  # Use `_id` as the unique identifier
+        users = get_users_collection()
+        users.update_one(
+            {"username": username},
             {"$set": {
                 f"files.{file_name}": {
                     "file_path": output_file,

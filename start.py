@@ -9,22 +9,24 @@ import sys
 
 # MongoDB Configuration
 MONGO_URI = "mongodb+srv://abhayv0324:0324Abhay@miniproject.ejdl9.mongodb.net/"  # Replace with your MongoDB URI
-db_name = "users_db"
-collection_name = "users"
+DB_NAME = "users_db"
+COLLECTION_NAME = "users"
 
 # MongoDB Connection Setup
 def get_mongo_client():
     try:
         client = MongoClient(MONGO_URI)
+        print("Connected successfully!")
         return client
     except Exception as e:
-        print(f"Error connecting to MongoDB: {e}", file=sys.stderr)
+        print(f"Connection failed: {e}", file=sys.stderr)
         return None
 
 def get_users_collection():
     client = get_mongo_client()
     if client:
-        return client[db_name][collection_name]
+        db = client[DB_NAME]
+        return db[COLLECTION_NAME]
     return None
 
 # Password Hashing
@@ -51,7 +53,8 @@ def login_user(username, password):
             return None
 
         # Fetch the user document
-        user = users_collection.find_one({"_id": username})
+        print(f"Searching for username: {username}")
+        user = users_collection.find_one({"username": username})
         if user is None:  # Explicitly check for None
             print("Username does not exist.", file=sys.stderr)
             return None
@@ -80,7 +83,7 @@ def register_user(username, password):
             return False
 
         # Check if the username already exists
-        if users_collection.find_one({"_id": username}):
+        if users_collection.find_one({"username": username}):
             print("Username already exists.", file=sys.stderr)
             return False
 
@@ -102,14 +105,15 @@ def register_user(username, password):
 
         # Prepare user data
         user_data = {
-            "_id": username,
+            "username": username,
             "password": hashed_pw.decode('utf-8'),
             "public_key": public_key_base64,
             "files": {}
         }
 
         # Insert the user data into the collection
-        users_collection.insert_one(user_data)
+        result = users_collection.insert_one(user_data)
+        print(f"Inserted user with ID: {result.inserted_id}")
         print("User registered successfully.")
         return True
     except Exception as e:
